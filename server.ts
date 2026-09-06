@@ -49,13 +49,13 @@ async function startServer() {
         });
       }
 
-      const apiKey = rawKey.trim();
+      const apiKey = rawKey.trim().replace(/^["']|["']$/g, '');
 
-      // Quick client key pattern sanity check (AIzaSy...)
-      if (!apiKey.startsWith('AIzaSy') || apiKey.length < 30) {
+      // Sanity check length
+      if (apiKey.length < 20) {
         return res.status(400).json({
           success: false,
-          error: '유효한 Google AI Studio API Key 형식이 아닙니다. ("AIzaSy..."로 시작하는 39자리 문자열)'
+          error: '유효한 Google AI Studio API Key 형식이 아닙니다. 발급받은 키를 다시 확인해 주세요.'
         });
       }
 
@@ -64,28 +64,48 @@ async function startServer() {
 
       // Initialize Google GenAI with the in-memory key
       const ai = new GoogleGenAI({ apiKey });
+      const candidateModels = ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-flash-latest'];
+      let verifiedModel = 'gemini-3.8-flash';
+      let verified = false;
+      let lastError: any = null;
 
-      // Run a lightweight probe to confirm model access & quota
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
-        contents: 'Ping',
-      });
+      for (const model of candidateModels) {
+        try {
+          const response = await ai.models.generateContent({
+            model,
+            contents: 'Ping',
+          });
 
-      if (response && response.text) {
+          if (response && (response.text !== undefined || (response as any).candidates)) {
+            verifiedModel = model;
+            verified = true;
+            break;
+          }
+        } catch (err: any) {
+          lastError = err;
+          const msg = err?.message || String(err);
+          if (
+            msg.includes('API_KEY_INVALID') ||
+            msg.includes('400') ||
+            msg.includes('401') ||
+            msg.includes('PERMISSION_DENIED') ||
+            msg.includes('403')
+          ) {
+            break;
+          }
+        }
+      }
+
+      if (verified) {
         return res.json({
           success: true,
           message: 'Gemini API Key가 성공적으로 승인 및 활성화되었습니다.',
-          model: 'gemini-3.8-flash',
+          model: verifiedModel,
           verifiedAt: new Date().toISOString()
         });
       }
 
-      return res.status(500).json({
-        success: false,
-        error: '응답을 수신하지 못했습니다. 잠시 후 다시 시도해 주세요.'
-      });
-    } catch (error: any) {
-      const errorMsg = error?.message || String(error);
+      const errorMsg = lastError?.message || String(lastError || '응답을 수신하지 못했습니다.');
       console.error('[API] Gemini verification failed:', errorMsg);
 
       if (errorMsg.includes('API_KEY_INVALID') || errorMsg.includes('400') || errorMsg.includes('401') || errorMsg.includes('unregistered')) {
@@ -113,6 +133,12 @@ async function startServer() {
         success: false,
         error: 'Google Gemini 서버와의 통신에 실패했습니다. 네트워크 상태 또는 잠시 후 다시 시도해 주세요.'
       });
+    } catch (error: any) {
+      console.error('[API] Unexpected error in verify-key:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'API Key 검증 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.'
+      });
     }
   });
 
@@ -139,25 +165,47 @@ async function startServer() {
         });
       }
 
-      const apiKey = rawKey.trim();
+      const apiKey = rawKey.trim().replace(/^["']|["']$/g, '');
       console.log(`[API] Gemini request received with key: ${maskKey(apiKey)}`);
 
       const ai = new GoogleGenAI({ apiKey });
+      const candidateModels = ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-flash-latest'];
+      let textResponse = '';
+      let success = false;
+      let lastError: any = null;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
-        contents: prompt.trim(),
-        config: systemInstruction
-          ? { systemInstruction: String(systemInstruction) }
-          : undefined,
-      });
+      for (const model of candidateModels) {
+        try {
+          const response = await ai.models.generateContent({
+            model,
+            contents: prompt.trim(),
+            config: systemInstruction
+              ? { systemInstruction: String(systemInstruction) }
+              : undefined,
+          });
 
-      return res.json({
-        success: true,
-        text: response.text || ''
-      });
-    } catch (error: any) {
-      const errorMsg = error?.message || String(error);
+          if (response && response.text) {
+            textResponse = response.text;
+            success = true;
+            break;
+          }
+        } catch (err: any) {
+          lastError = err;
+          const msg = err?.message || String(err);
+          if (msg.includes('API_KEY_INVALID') || msg.includes('401') || msg.includes('PERMISSION_DENIED')) {
+            break;
+          }
+        }
+      }
+
+      if (success) {
+        return res.json({
+          success: true,
+          text: textResponse
+        });
+      }
+
+      const errorMsg = lastError?.message || String(lastError || 'Gemini AI 응답 생성에 실패했습니다.');
       console.error('[API] Gemini execution failed:', errorMsg);
 
       if (errorMsg.includes('API_KEY_INVALID') || errorMsg.includes('401')) {
@@ -177,6 +225,12 @@ async function startServer() {
       return res.status(500).json({
         success: false,
         error: 'Gemini AI 응답 생성에 실패했습니다. 다시 시도해 주세요.'
+      });
+    } catch (error: any) {
+      console.error('[API] Unexpected error in gemini route:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Gemini 처리 중 서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.'
       });
     }
   });

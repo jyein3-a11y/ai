@@ -46,6 +46,7 @@ import { ReservationManageStep } from './components/steps/ReservationManageStep'
 import { DeskGuidanceStep } from './components/steps/DeskGuidanceStep';
 import { SystemErrorStep } from './components/steps/SystemErrorStep';
 import { LandingPage } from './components/LandingPage';
+import { ApiKeyRequiredModal } from './components/ApiKeyRequiredModal';
 
 export default function App() {
   // Navigation & Step State: Initial screen is the engaging Landing Page
@@ -85,6 +86,12 @@ export default function App() {
   // Modal States
   const [showInactivityModal, setShowInactivityModal] = useState<boolean>(false);
   const [showStaffCallModal, setShowStaffCallModal] = useState<boolean>(false);
+  const [showKeyRequiredModal, setShowKeyRequiredModal] = useState<boolean>(false);
+
+  const handleKeyVerified = (key: string) => {
+    setGeminiApiKey(key);
+    setIsKeyVerified(true);
+  };
 
   // Data States
   const [services] = useState<ServiceItem[]>(SYSTEM_SERVICES);
@@ -161,6 +168,11 @@ export default function App() {
 
   // Step Navigation Helpers
   const goToStep = (nextStep: Step) => {
+    // Gatekeeper: If key is not verified, require verification before proceeding to services or menu
+    if (!isKeyVerified && nextStep !== 'landing' && nextStep !== 'welcome' && nextStep !== 'consent_declined' && nextStep !== 'desk_guidance') {
+      setShowKeyRequiredModal(true);
+      return;
+    }
     setStepHistory((prev) => [...prev, currentStep]);
     setCurrentStep(nextStep);
   };
@@ -267,6 +279,8 @@ export default function App() {
           <WelcomeStep
             highContrast={highContrast}
             operatingStatus={operatingStatus}
+            isKeyVerified={isKeyVerified}
+            onRequireKeyApproval={() => setShowKeyRequiredModal(true)}
             onStartService={() => goToStep('consent')}
             onViewLanding={() => {
               speechService.stop();
@@ -309,6 +323,8 @@ export default function App() {
             highContrast={highContrast}
             privacyAgreed={isConsented}
             isConsented={isConsented}
+            isKeyVerified={isKeyVerified}
+            onRequireKeyApproval={() => setShowKeyRequiredModal(true)}
             onSelectService={() => {
               setServiceSelectIntent('guide');
               goToStep('service_select');
@@ -621,6 +637,36 @@ export default function App() {
           setShowStaffCallModal(false);
           goToStep('reserve_date');
         }}
+      />
+
+      {/* Global API Key Required Modal for Kiosk Flows */}
+      <ApiKeyRequiredModal
+        isOpen={showKeyRequiredModal}
+        onClose={() => setShowKeyRequiredModal(false)}
+        highContrast={highContrast}
+        apiKey={geminiApiKey}
+        onKeyVerified={(key) => {
+          handleKeyVerified(key);
+          setShowKeyRequiredModal(false);
+          if (currentStep === 'welcome') {
+            goToStep('consent');
+          }
+        }}
+        onGoToKeySection={() => {
+          setShowKeyRequiredModal(false);
+          setCurrentStep('landing');
+          setTimeout(() => {
+            const el = document.getElementById('gemini-auth-section');
+            if (el) {
+              el.scrollIntoView({ behavior: 'smooth' });
+              setTimeout(() => {
+                const input = document.getElementById('gemini-api-key-input');
+                if (input) input.focus();
+              }, 500);
+            }
+          }, 100);
+        }}
+        actionTitle={currentStep === 'welcome' ? '키오스크 검사 및 서비스 시작' : '키오스크 메뉴'}
       />
     </div>
   );

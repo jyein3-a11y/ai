@@ -9,7 +9,8 @@ import {
   AlertTriangle,
   CalendarClock,
   ArrowRight,
-  Clock
+  Clock,
+  Lock
 } from 'lucide-react';
 import { OperatingMode } from '../../types';
 import { OperatingStatus, getOperatingStatus } from '../../utils/operatingHours';
@@ -22,6 +23,8 @@ interface MainMenuStepProps {
   highContrast: boolean;
   privacyAgreed?: boolean;
   isConsented?: boolean;
+  isKeyVerified?: boolean;
+  onRequireKeyApproval?: () => void;
   onSelectService?: () => void;
   onSelectServiceGuide?: () => void;
   onSelectDocs?: () => void;
@@ -46,6 +49,8 @@ export const MainMenuStep: React.FC<MainMenuStepProps> = ({
   highContrast,
   privacyAgreed,
   isConsented,
+  isKeyVerified = false,
+  onRequireKeyApproval,
   onSelectService,
   onSelectServiceGuide,
   onSelectDocs,
@@ -68,53 +73,77 @@ export const MainMenuStep: React.FC<MainMenuStepProps> = ({
   const isHoliday = status.statusType === 'holiday';
   const hasAgreed = privacyAgreed ?? isConsented ?? true;
 
+  const checkKeyOrProceed = (action: () => void) => {
+    if (!isKeyVerified) {
+      if (onRequireKeyApproval) {
+        onRequireKeyApproval();
+      }
+      return;
+    }
+    action();
+  };
+
   const handleSelectService = () => {
-    if (onSelectService) onSelectService();
-    else if (onSelectServiceGuide) onSelectServiceGuide();
+    checkKeyOrProceed(() => {
+      if (onSelectService) onSelectService();
+      else if (onSelectServiceGuide) onSelectServiceGuide();
+    });
   };
 
   const handleSelectDocs = () => {
-    if (onSelectDocs) onSelectDocs();
-    else if (onSelectService) onSelectService();
-    else if (onSelectServiceGuide) onSelectServiceGuide();
+    checkKeyOrProceed(() => {
+      if (onSelectDocs) onSelectDocs();
+      else if (onSelectService) onSelectService();
+      else if (onSelectServiceGuide) onSelectServiceGuide();
+    });
   };
 
   const handleContactStaff = () => {
-    if (hasAgreed) {
-      if (onContactStaff) onContactStaff();
-      else if (onSelectStaffCheck) onSelectStaffCheck();
-    } else {
-      if (onGoToDesk) onGoToDesk();
-      else if (onContactStaff) onContactStaff();
-      else if (onSelectStaffCheck) onSelectStaffCheck();
-    }
+    checkKeyOrProceed(() => {
+      if (hasAgreed) {
+        if (onContactStaff) onContactStaff();
+        else if (onSelectStaffCheck) onSelectStaffCheck();
+      } else {
+        if (onGoToDesk) onGoToDesk();
+        else if (onContactStaff) onContactStaff();
+        else if (onSelectStaffCheck) onSelectStaffCheck();
+      }
+    });
   };
 
   const handleReserve = () => {
-    if (hasAgreed) {
-      if (onReserve) onReserve();
-      else if (onSelectReservation) onSelectReservation();
-    } else {
-      if (onGoToDesk) onGoToDesk();
-      else if (onReserve) onReserve();
-      else if (onSelectReservation) onSelectReservation();
-    }
+    checkKeyOrProceed(() => {
+      if (hasAgreed) {
+        if (onReserve) onReserve();
+        else if (onSelectReservation) onSelectReservation();
+      } else {
+        if (onGoToDesk) onGoToDesk();
+        else if (onReserve) onReserve();
+        else if (onSelectReservation) onSelectReservation();
+      }
+    });
   };
 
   const handleSendSms = () => {
-    if (onSendSms) onSendSms();
-    else if (onSelectStaffSms) onSelectStaffSms();
+    checkKeyOrProceed(() => {
+      if (onSendSms) onSendSms();
+      else if (onSelectStaffSms) onSelectStaffSms();
+    });
   };
 
   const handleEmergency = () => {
-    if (onEmergency) onEmergency();
-    else if (onSelectEmergency) onSelectEmergency();
-    else if (onSelectCrisisSupport) onSelectCrisisSupport();
+    checkKeyOrProceed(() => {
+      if (onEmergency) onEmergency();
+      else if (onSelectEmergency) onSelectEmergency();
+      else if (onSelectCrisisSupport) onSelectCrisisSupport();
+    });
   };
 
   const handleManageReservations = () => {
-    if (onManageReservations) onManageReservations();
-    else if (onSelectManageReservation) onSelectManageReservation();
+    checkKeyOrProceed(() => {
+      if (onManageReservations) onManageReservations();
+      else if (onSelectManageReservation) onSelectManageReservation();
+    });
   };
 
   useEffect(() => {
@@ -165,6 +194,36 @@ export const MainMenuStep: React.FC<MainMenuStepProps> = ({
             ? '지금은 휴일(쉬는 날)입니다.'
             : '지금은 업무시간 종료(야간)입니다.'}
         </h2>
+
+        {/* Key Required Alert Banner if not verified */}
+        {!isKeyVerified && (
+          <div
+            className={`max-w-2xl mx-auto p-4 rounded-2xl mb-5 border-2 flex items-center justify-between gap-3 text-left transition-all ${
+              highContrast
+                ? 'bg-zinc-900 border-yellow-400 text-yellow-300'
+                : 'bg-amber-50 border-amber-300 text-amber-900'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <Lock className="w-5 h-5 text-amber-600 dark:text-yellow-400 shrink-0" />
+              <div>
+                <p className="text-sm font-black">Google Gemini API Key 승인 필요</p>
+                <p className="text-xs opacity-85 font-medium">
+                  키오스크 검사 및 메뉴 이용을 위해 먼저 API Key 유효성 승인을 완료해 주세요.
+                </p>
+              </div>
+            </div>
+            {onRequireKeyApproval && (
+              <button
+                type="button"
+                onClick={onRequireKeyApproval}
+                className="px-3.5 py-2 rounded-xl text-xs font-black bg-amber-500 hover:bg-amber-600 text-white shrink-0 shadow-xs cursor-pointer active:scale-95 transition-all"
+              >
+                승인받기
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Operating & Staff presence status banner */}
         <div

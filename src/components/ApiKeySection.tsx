@@ -69,7 +69,8 @@ export const ApiKeySection: React.FC<ApiKeySectionProps> = ({
         type: 'success',
         text: result.message || 'Gemini API Key가 안전하게 승인되었습니다.',
       });
-      onKeyVerified(inputKey.trim());
+      const cleanKey = inputKey.trim().replace(/^["']|["']$/g, '');
+      onKeyVerified(cleanKey);
     } else {
       setStatusMessage({
         type: 'error',

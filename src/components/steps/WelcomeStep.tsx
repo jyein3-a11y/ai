@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { ArrowRight, Sparkles, Shield, HeartHandshake } from 'lucide-react';
+import { ArrowRight, Sparkles, Shield, HeartHandshake, Lock, AlertCircle } from 'lucide-react';
 import { speechService } from '../../utils/speech';
 import { OperatingStatus } from '../../utils/operatingHours';
 
@@ -8,19 +8,39 @@ interface WelcomeStepProps {
   operatingStatus?: OperatingStatus;
   onStartService: () => void;
   onViewLanding?: () => void;
+  isKeyVerified?: boolean;
+  onRequireKeyApproval?: () => void;
 }
 
 export const WelcomeStep: React.FC<WelcomeStepProps> = ({
   highContrast,
   operatingStatus,
   onStartService,
-  onViewLanding
+  onViewLanding,
+  isKeyVerified = false,
+  onRequireKeyApproval,
 }) => {
   useEffect(() => {
-    speechService.speak(
-      '안녕하세요! 한국법무보호복지공단에 오신 것을 환영합니다. 화면 중앙의 서비스 시작하기 버튼을 눌러주세요.'
-    );
-  }, []);
+    if (!isKeyVerified) {
+      speechService.speak(
+        '안녕하세요! 한국법무보호복지공단 디지털 무인안내기입니다. 서비스 시작을 위해 먼저 API Key 승인을 받아주세요.'
+      );
+    } else {
+      speechService.speak(
+        '안녕하세요! 한국법무보호복지공단에 오신 것을 환영합니다. 화면 중앙의 서비스 시작하기 버튼을 눌러주세요.'
+      );
+    }
+  }, [isKeyVerified]);
+
+  const handleStartClick = () => {
+    if (!isKeyVerified) {
+      if (onRequireKeyApproval) {
+        onRequireKeyApproval();
+      }
+      return;
+    }
+    onStartService();
+  };
 
   return (
     <div
@@ -69,19 +89,60 @@ export const WelcomeStep: React.FC<WelcomeStepProps> = ({
           공단의 다양한 복지 서비스를 편리하게 확인하실 수 있습니다.
         </p>
 
+        {/* Key Required Alert Banner if not verified */}
+        {!isKeyVerified && (
+          <div
+            className={`w-full max-w-md p-4 mb-6 rounded-2xl border-2 flex items-center justify-between gap-3 text-left transition-all ${
+              highContrast
+                ? 'bg-zinc-900 border-yellow-400 text-yellow-300'
+                : 'bg-amber-50 border-amber-300 text-amber-900'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <Lock className="w-5 h-5 text-amber-600 dark:text-yellow-400 shrink-0" />
+              <div>
+                <p className="text-xs sm:text-sm font-black">Google Gemini API Key 승인 필요</p>
+                <p className="text-[11px] sm:text-xs opacity-80 font-medium">
+                  키오스크 검사를 시작하려면 먼저 API Key를 승인받아야 합니다.
+                </p>
+              </div>
+            </div>
+            {onRequireKeyApproval && (
+              <button
+                type="button"
+                onClick={onRequireKeyApproval}
+                className="px-3 py-1.5 rounded-xl text-xs font-black bg-amber-500 hover:bg-amber-600 text-white shrink-0 shadow-xs cursor-pointer active:scale-95 transition-all"
+              >
+                승인받기
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Center: Medium-Sized "서비스 시작하기" Button */}
         <div className="my-2 flex flex-col items-center justify-center w-full">
           <button
             id="btn-welcome-start-service"
-            onClick={onStartService}
-            className={`group inline-flex items-center justify-center gap-3 w-auto min-w-[240px] sm:min-w-[280px] max-w-[340px] py-4 sm:py-4.5 px-8 sm:px-10 text-xl sm:text-2xl font-black rounded-2xl sm:rounded-3xl shadow-lg transition-all transform active:scale-95 cursor-pointer ${
+            onClick={handleStartClick}
+            className={`group inline-flex items-center justify-center gap-3 w-auto min-w-[240px] sm:min-w-[280px] max-w-[360px] py-4 sm:py-4.5 px-8 sm:px-10 text-xl sm:text-2xl font-black rounded-2xl sm:rounded-3xl shadow-lg transition-all transform active:scale-95 cursor-pointer ${
               highContrast
                 ? 'bg-yellow-400 text-black hover:bg-yellow-300 border-2 border-yellow-300 shadow-yellow-400/20'
-                : 'bg-[#3B82F6] hover:bg-[#2563EB] text-white shadow-blue-500/25 hover:shadow-blue-500/40 hover:-translate-y-0.5'
+                : isKeyVerified
+                ? 'bg-[#3B82F6] hover:bg-[#2563EB] text-white shadow-blue-500/25 hover:shadow-blue-500/40 hover:-translate-y-0.5'
+                : 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-500/25 hover:shadow-amber-500/40 hover:-translate-y-0.5'
             }`}
           >
-            <span>서비스 시작하기</span>
-            <ArrowRight className="w-6 h-6 transition-transform group-hover:translate-x-1" />
+            {isKeyVerified ? (
+              <>
+                <span>서비스 시작하기</span>
+                <ArrowRight className="w-6 h-6 transition-transform group-hover:translate-x-1" />
+              </>
+            ) : (
+              <>
+                <Lock className="w-6 h-6" />
+                <span>🔒 서비스 시작 (승인 필요)</span>
+              </>
+            )}
           </button>
 
           <p

@@ -21,13 +21,15 @@ import {
   RotateCcw,
   Smartphone,
   ChevronDown,
-  UserCheck
+  UserCheck,
+  Lock
 } from 'lucide-react';
 import { OperatingStatus } from '../utils/operatingHours';
 import { speechService } from '../utils/speech';
 import { OFFICIAL_AGENCY_NAME, OFFICIAL_CONTACTS } from '../data/systemData';
 import { ApiKeySection } from './ApiKeySection';
 import { EditorialLookbookReviews } from './EditorialLookbookReviews';
+import { ApiKeyRequiredModal } from './ApiKeyRequiredModal';
 
 interface LandingPageProps {
   operatingStatus: OperatingStatus;
@@ -53,6 +55,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const [activeInteractiveTab, setActiveInteractiveTab] = useState<'housing' | 'job' | 'emergency' | 'counsel'>('housing');
   const [isPlayingTts, setIsPlayingTts] = useState<boolean>(false);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
+  const [showKeyModal, setShowKeyModal] = useState<boolean>(false);
+
+  const handleLaunchKiosk = () => {
+    if (!isKeyVerified) {
+      setShowKeyModal(true);
+      return;
+    }
+    onStartKiosk();
+  };
 
   useEffect(() => {
     const unsubscribe = speechService.subscribe((speaking) => {
@@ -227,15 +238,26 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             {/* Start Kiosk Button */}
             <button
               id="nav-btn-start-kiosk"
-              onClick={onStartKiosk}
+              onClick={handleLaunchKiosk}
               className={`px-4 sm:px-5 py-2.5 rounded-xl font-black text-xs sm:text-sm flex items-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer ${
                 highContrast
                   ? 'bg-yellow-400 text-black hover:bg-yellow-300'
-                  : 'bg-[#3B82F6] hover:bg-blue-600 text-white shadow-blue-200'
+                  : isKeyVerified
+                  ? 'bg-[#3B82F6] hover:bg-blue-600 text-white shadow-blue-200'
+                  : 'bg-amber-600 hover:bg-amber-700 text-white shadow-amber-200'
               }`}
             >
-              <span>키오스크 시작</span>
-              <ArrowRight className="w-4 h-4" />
+              {isKeyVerified ? (
+                <>
+                  <span>키오스크 시작</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              ) : (
+                <>
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>🔒 키오스크 시작 (승인 필요)</span>
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -307,16 +329,28 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <div className="flex flex-wrap items-center gap-3 mb-8">
                   <button
                     id="hero-btn-launch-kiosk"
-                    onClick={onStartKiosk}
+                    onClick={handleLaunchKiosk}
                     className={`px-6 py-4 rounded-2xl font-black text-sm sm:text-base flex items-center gap-2 shadow-xl active:scale-95 transition-all cursor-pointer ${
                       highContrast
                         ? 'bg-yellow-400 text-black hover:bg-yellow-300'
-                        : 'bg-white hover:bg-stone-100 text-[#5F8D3E] shadow-stone-900/20'
+                        : isKeyVerified
+                        ? 'bg-white hover:bg-stone-100 text-[#5F8D3E] shadow-stone-900/20'
+                        : 'bg-amber-100 hover:bg-amber-200 text-amber-900 shadow-stone-900/20'
                     }`}
                   >
-                    <Sparkles className="w-5 h-5 text-[#5F8D3E] dark:text-black" />
-                    <span>[무인안내기 키오스크 체험]</span>
-                    <ArrowRight className="w-4 h-4" />
+                    {isKeyVerified ? (
+                      <>
+                        <Sparkles className="w-5 h-5 text-[#5F8D3E] dark:text-black" />
+                        <span>[무인안내기 키오스크 체험]</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="w-5 h-5 text-amber-700 dark:text-black" />
+                        <span>[🔒 API Key 승인 후 검사 시작]</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
                   </button>
 
                   <a
@@ -419,7 +453,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           const el = document.getElementById('services');
           if (el) el.scrollIntoView({ behavior: 'smooth' });
         }}
-        onStartKiosk={onStartKiosk}
+        onStartKiosk={handleLaunchKiosk}
+        isKeyVerified={isKeyVerified}
       />
 
       {/* 2-1. Gemini API Key Activation & Verification Section (CORS-safe server-to-server) */}
@@ -630,15 +665,26 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </h4>
               </div>
               <button
-                onClick={onStartKiosk}
+                onClick={handleLaunchKiosk}
                 className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-black flex items-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer ${
                   highContrast
                     ? 'bg-yellow-400 text-black hover:bg-yellow-300'
-                    : 'bg-[#3B82F6] text-white hover:bg-blue-600'
+                    : isKeyVerified
+                    ? 'bg-[#3B82F6] text-white hover:bg-blue-600'
+                    : 'bg-amber-600 text-white hover:bg-amber-700'
                 }`}
               >
-                <span>이 서비스로 상담 예약하기</span>
-                <ArrowRight className="w-4 h-4" />
+                {isKeyVerified ? (
+                  <>
+                    <span>이 서비스로 상담 예약하기</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                ) : (
+                  <>
+                    <Lock className="w-4 h-4" />
+                    <span>이 서비스 신청 (승인 필요)</span>
+                  </>
+                )}
               </button>
             </div>
 
@@ -727,15 +773,26 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </ul>
 
             <button
-              onClick={onStartKiosk}
+              onClick={handleLaunchKiosk}
               className={`px-7 py-4 rounded-2xl font-black text-base flex items-center gap-2 shadow-lg active:scale-95 transition-all cursor-pointer ${
                 highContrast
                   ? 'bg-yellow-400 text-black hover:bg-yellow-300'
-                  : 'bg-[#3B82F6] hover:bg-blue-600 text-white shadow-blue-200'
+                  : isKeyVerified
+                  ? 'bg-[#3B82F6] hover:bg-blue-600 text-white shadow-blue-200'
+                  : 'bg-amber-600 hover:bg-amber-700 text-white shadow-amber-200'
               }`}
             >
-              <span>[대시보드 직접 확인하러 가기]</span>
-              <ArrowRight className="w-5 h-5" />
+              {isKeyVerified ? (
+                <>
+                  <span>[대시보드 직접 확인하러 가기]</span>
+                  <ArrowRight className="w-5 h-5" />
+                </>
+              ) : (
+                <>
+                  <Lock className="w-5 h-5" />
+                  <span>[🔒 API Key 승인 후 대시보드 열기]</span>
+                </>
+              )}
             </button>
           </div>
 
@@ -904,16 +961,28 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
           <button
             id="footer-btn-launch-kiosk"
-            onClick={onStartKiosk}
+            onClick={handleLaunchKiosk}
             className={`px-10 py-5 rounded-2xl sm:rounded-3xl font-black text-xl sm:text-2xl shadow-2xl active:scale-95 transition-all cursor-pointer inline-flex items-center gap-3 ${
               highContrast
                 ? 'bg-yellow-400 text-black border-2 border-yellow-400 hover:bg-yellow-300'
-                : 'bg-[#3B82F6] hover:bg-blue-600 text-white shadow-blue-300/60'
+                : isKeyVerified
+                ? 'bg-[#3B82F6] hover:bg-blue-600 text-white shadow-blue-300/60'
+                : 'bg-amber-600 hover:bg-amber-700 text-white shadow-amber-300/60'
             }`}
           >
-            <Sparkles className="w-7 h-7" />
-            <span>[디지털 무인안내기 지금 시작하기]</span>
-            <ArrowRight className="w-7 h-7" />
+            {isKeyVerified ? (
+              <>
+                <Sparkles className="w-7 h-7" />
+                <span>[디지털 무인안내기 지금 시작하기]</span>
+                <ArrowRight className="w-7 h-7" />
+              </>
+            ) : (
+              <>
+                <Lock className="w-7 h-7" />
+                <span>[🔒 API Key 승인 후 무인기 시작하기]</span>
+                <ArrowRight className="w-7 h-7" />
+              </>
+            )}
           </button>
         </div>
       </section>
@@ -925,6 +994,31 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           본 디지털 무인안내 시스템은 공단 방문 대상자의 자립 지원 및 신속한 행정 안내를 위해 제작되었습니다.
         </p>
       </footer>
+
+      {/* Global API Key Required Modal */}
+      <ApiKeyRequiredModal
+        isOpen={showKeyModal}
+        onClose={() => setShowKeyModal(false)}
+        highContrast={highContrast}
+        apiKey={geminiApiKey}
+        onKeyVerified={(key) => {
+          onKeyVerified(key);
+          setShowKeyModal(false);
+          onStartKiosk();
+        }}
+        onGoToKeySection={() => {
+          setShowKeyModal(false);
+          const el = document.getElementById('gemini-auth-section');
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth' });
+            setTimeout(() => {
+              const input = document.getElementById('gemini-api-key-input');
+              if (input) input.focus();
+            }, 500);
+          }
+        }}
+        actionTitle="키오스크 검사 및 무인안내"
+      />
     </div>
   );
 };

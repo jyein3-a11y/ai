@@ -1,6 +1,33 @@
 import { GoogleGenAI } from '@google/genai';
 
 /**
+ * Helper to safely extract JSON body across various Vercel / Node runtimes
+ */
+async function getRequestBody(req: any): Promise<any> {
+  if (req.body) {
+    if (typeof req.body === 'string') {
+      try {
+        return JSON.parse(req.body);
+      } catch {
+        return {};
+      }
+    }
+    return req.body;
+  }
+
+  try {
+    const buffers: any[] = [];
+    for await (const chunk of req) {
+      buffers.push(chunk);
+    }
+    const data = Buffer.concat(buffers).toString();
+    return data ? JSON.parse(data) : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
  * Vercel Serverless Function / Backend API Route: /api/verify-key
  * Validates client-provided Gemini API Key server-to-server.
  * Zero DB persistence - processed strictly in-memory.
@@ -24,7 +51,8 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const rawKey = req.body?.apiKey || process.env.GEMINI_API_KEY;
+    const body = await getRequestBody(req);
+    const rawKey = body?.apiKey || process.env.GEMINI_API_KEY;
 
     if (!rawKey || typeof rawKey !== 'string' || !rawKey.trim()) {
       return res.status(400).json({
@@ -33,13 +61,13 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    const apiKey = rawKey.trim();
+    const apiKey = rawKey.trim().replace(/^["']|["']$/g, '');
 
     // Check key format
-    if (!apiKey.startsWith('AIzaSy') || apiKey.length < 30) {
+    if (apiKey.length < 20) {
       return res.status(400).json({
         success: false,
-        error: '유효한 Google AI Studio API Key 형식이 아닙니다. ("AIzaSy..."로 시작하는 39자리 문자열)',
+        error: '유효한 Google AI Studio API Key 형식이 아닙니다. 발급받은 키를 다시 확인해 주세요.',
       });
     }
 
@@ -47,28 +75,51 @@ export default async function handler(req: any, res: any) {
     const masked = apiKey.length <= 8 ? '****' : `${apiKey.slice(0, 4)}...${apiKey.slice(-4)}`;
     console.log(`[API/Vercel] Verifying Gemini API Key: ${masked}`);
 
-    // Call Google GenAI server-to-server
+    // Call Google GenAI server-to-server with model fallback
     const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: 'Ping',
-    });
+    const candidateModels = ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-flash-latest'];
+    let verifiedModel = 'gemini-3.8-flash';
+    let verified = false;
+    let lastError: any = null;
 
-    if (response && response.text) {
+    for (const model of candidateModels) {
+      try {
+        const response = await ai.models.generateContent({
+          model,
+          contents: 'Ping',
+        });
+
+        if (response && (response.text !== undefined || (response as any).candidates)) {
+          verifiedModel = model;
+          verified = true;
+          break;
+        }
+      } catch (err: any) {
+        lastError = err;
+        const msg = err?.message || String(err);
+        // If authentication failed directly, stop trying other models
+        if (
+          msg.includes('API_KEY_INVALID') ||
+          msg.includes('400') ||
+          msg.includes('401') ||
+          msg.includes('PERMISSION_DENIED') ||
+          msg.includes('403')
+        ) {
+          break;
+        }
+      }
+    }
+
+    if (verified) {
       return res.status(200).json({
         success: true,
         message: 'Gemini API Key가 성공적으로 승인 및 활성화되었습니다.',
-        model: 'gemini-3.8-flash',
+        model: verifiedModel,
         verifiedAt: new Date().toISOString(),
       });
     }
 
-    return res.status(500).json({
-      success: false,
-      error: '응답을 수신하지 못했습니다. 잠시 후 다시 시도해 주세요.',
-    });
-  } catch (error: any) {
-    const errorMsg = error?.message || String(error);
+    const errorMsg = lastError?.message || String(lastError || '응답을 수신하지 못했습니다.');
     console.error('[API/Vercel] Gemini verification failed:', errorMsg);
 
     if (
@@ -100,6 +151,12 @@ export default async function handler(req: any, res: any) {
     return res.status(500).json({
       success: false,
       error: 'Google Gemini 서버와의 통신에 실패했습니다. 네트워크 상태 또는 잠시 후 다시 시도해 주세요.',
+    });
+  } catch (error: any) {
+    console.error('[API/Vercel] Unexpected error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'API Key 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.',
     });
   }
 }

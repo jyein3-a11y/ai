@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Star, Plus, CheckCircle, Sparkles, Home, Briefcase, HeartHandshake, Smile } from 'lucide-react';
+import { Star, Plus, CheckCircle, Sparkles, Home, Briefcase, HeartHandshake, Smile, Lock } from 'lucide-react';
 
 interface EditorialLookbookReviewsProps {
   highContrast: boolean;
   onSelectService: (serviceKey: 'housing' | 'job' | 'emergency' | 'counsel') => void;
   onStartKiosk: () => void;
+  isKeyVerified?: boolean;
 }
 
 interface ReviewItem {
@@ -26,6 +27,7 @@ export const EditorialLookbookReviews: React.FC<EditorialLookbookReviewsProps> =
   highContrast,
   onSelectService,
   onStartKiosk,
+  isKeyVerified = false,
 }) => {
   const [activeItem, setActiveItem] = useState<string | null>(null);
 
@@ -243,11 +245,22 @@ export const EditorialLookbookReviews: React.FC<EditorialLookbookReviewsProps> =
                       className={`text-xs font-black px-3 py-1.5 rounded-lg flex items-center gap-1 cursor-pointer transition-all active:scale-95 ${
                         highContrast
                           ? 'bg-yellow-400 text-black'
-                          : 'bg-[#5D8B37] hover:bg-[#4E762E] text-white shadow-xs'
+                          : isKeyVerified
+                          ? 'bg-[#5D8B37] hover:bg-[#4E762E] text-white shadow-xs'
+                          : 'bg-amber-600 hover:bg-amber-700 text-white shadow-xs'
                       }`}
                     >
-                      <Sparkles className="w-3 h-3" />
-                      <span>신청하기</span>
+                      {isKeyVerified ? (
+                        <>
+                          <Sparkles className="w-3 h-3" />
+                          <span>신청하기</span>
+                        </>
+                      ) : (
+                        <>
+                          <Lock className="w-3 h-3" />
+                          <span>승인 필요</span>
+                        </>
+                      )}
                     </button>
                   </div>
                 </div>
@@ -282,11 +295,22 @@ export const EditorialLookbookReviews: React.FC<EditorialLookbookReviewsProps> =
             className={`px-7 py-4 rounded-2xl font-black text-sm sm:text-base flex items-center gap-2 shrink-0 shadow-lg active:scale-95 transition-all cursor-pointer ${
               highContrast
                 ? 'bg-yellow-400 text-black hover:bg-yellow-300'
-                : 'bg-[#5D8B37] hover:bg-[#4E762E] text-white shadow-green-900/10'
+                : isKeyVerified
+                ? 'bg-[#5D8B37] hover:bg-[#4E762E] text-white shadow-green-900/10'
+                : 'bg-amber-600 hover:bg-amber-700 text-white shadow-amber-900/10'
             }`}
           >
-            <Sparkles className="w-4 h-4" />
-            <span>[무인안내기 키오스크 체험]</span>
+            {isKeyVerified ? (
+              <>
+                <Sparkles className="w-4 h-4" />
+                <span>[무인안내기 키오스크 체험]</span>
+              </>
+            ) : (
+              <>
+                <Lock className="w-4 h-4" />
+                <span>[🔒 API Key 승인 후 체험하기]</span>
+              </>
+            )}
           </button>
         </div>
       </div>
