@@ -1,0 +1,6 @@
+{
+  "name": "한국법무보호복지공단 보호안내원",
+  "description": "한국법무보호복지공단 방문 대상자를 위한 쉬운 말 음성 지원 방문 안내 챗봇",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
